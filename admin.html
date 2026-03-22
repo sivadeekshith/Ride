@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin – NextRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b, #2d3a4e);
+            font-family: 'Segoe UI', system-ui;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 28px;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(2px);
+            border: none;
+            box-shadow: 0 12px 25px -10px rgba(0,0,0,0.2);
+        }
+        .nav-tabs .nav-link {
+            border-radius: 40px;
+            margin-right: 8px;
+            font-weight: 600;
+        }
+        .nav-tabs .nav-link.active {
+            background: #3b82f6;
+            color: white;
+            border: none;
+        }
+        .table-responsive {
+            border-radius: 20px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">🛡️ Admin Dashboard</h2>
+        <button id="logoutBtn" class="btn btn-danger rounded-pill">Logout</button>
+    </div>
+
+    <div class="card p-4">
+        <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pending">Approval</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#emergency">Emergency <span id="emergencyBadge" class="badge bg-danger ms-1"></span></button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#reports">Reports</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#master">Master Data</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#logbook">Driver Logbook</button></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Pending Approvals -->
+            <div class="tab-pane fade show active" id="pending">
+                <div class="mb-3 d-flex gap-2">
+                    <select id="batchDriverSelect" class="form-select w-auto"></select>
+                    <select id="batchCarSelect" class="form-select w-auto"></select>
+                    <button id="batchAssignBtn" class="btn btn-success">Assign Selected</button>
+                </div>
+                <div id="pendingRequestsTable" class="table-responsive"></div>
+            </div>
+
+            <!-- Emergency Incidents -->
+            <div class="tab-pane fade" id="emergency">
+                <div id="emergencyIncidentsTable" class="table-responsive"></div>
+            </div>
+
+            <!-- Reports -->
+            <div class="tab-pane fade" id="reports">
+                <div class="row g-3">
+                    <div class="col-md-4"><label>Month</label><input type="month" id="monthSelect" class="form-control"></div>
+                    <div class="col-md-4"><button id="filterBtn" class="btn btn-primary mt-4">Show Summary</button></div>
+                </div>
+                <div id="monthlySummary" class="mt-3"></div>
+                <div id="monthlyRecords" class="mt-3"></div>
+                <hr>
+                <h5>Car Monthly Log</h5>
+                <div class="row g-2">
+                    <div class="col-auto"><select id="carSelect" class="form-select"></select></div>
+                    <div class="col-auto"><input type="month" id="carMonthSelect" class="form-control"></div>
+                    <div class="col-auto"><button id="showCarLogBtn" class="btn btn-info">Show Log</button></div>
+                </div>
+                <div id="carMonthlyLog" class="mt-3"></div>
+            </div>
+
+            <!-- Master Data -->
+            <div class="tab-pane fade" id="master">
+                <h5>Driver Management</h5>
+                <div class="row g-2 mb-3">
+                    <div class="col-auto"><input type="text" id="newDriverName" placeholder="Name" class="form-control"></div>
+                    <div class="col-auto"><input type="text" id="newDriverContact" placeholder="Contact" class="form-control"></div>
+                    <div class="col-auto"><button id="addDriverBtn" class="btn btn-success">Add Driver</button></div>
+                </div>
+                <div class="row g-2 mb-4">
+                    <div class="col-auto"><select id="removeDriverSelect" class="form-select"></select></div>
+                    <div class="col-auto"><button id="removeDriverBtn" class="btn btn-danger">Remove Driver</button></div>
+                </div>
+                <div id="currentDriversTable"></div>
+
+                <hr class="my-4">
+                <h5>Car Management</h5>
+                <div class="row g-2 mb-3">
+                    <div class="col-auto"><input type="text" id="newCarDetails" placeholder="Make/Model" class="form-control"></div>
+                    <div class="col-auto"><input type="text" id="newCarNumberPlate" placeholder="Plate (TS 09 AB 1234)" class="form-control"></div>
+                    <div class="col-auto"><button id="addCarBtn" class="btn btn-success">Add Car</button></div>
+                </div>
+                <div class="row g-2 mb-4">
+                    <div class="col-auto"><select id="removeCarSelect" class="form-select"></select></div>
+                    <div class="col-auto"><button id="removeCarBtn" class="btn btn-danger">Remove Car</button></div>
+                </div>
+                <div id="currentCarsTable"></div>
+            </div>
+
+            <!-- Driver Logbook -->
+            <div class="tab-pane fade" id="logbook">
+                <div id="driverLogbookPanels"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="utils.js"></script>
+<script>
+    NextRideAPI.checkToken();
+    const currentUser = localStorage.getItem('currentUser');
+    if (currentUser !== 'Admin') window.location.href = 'index.html';
+
+    let drivers = JSON.parse(localStorage.getItem("drivers")) || [];
+    let cars = JSON.parse(localStorage.getItem("cars")) || [];
+    let bookings = JSON.parse(localStorage.getItem("bookings")) || [];
+    let emergencyIncidents = JSON.parse(localStorage.getItem("emergencyIncidents")) || [];
+
+    function saveDrivers() { localStorage.setItem("drivers", JSON.stringify(drivers)); updateDriverDropdowns(); renderCurrentDrivers(); renderDriverLogbook(); }
+    function saveCars() { localStorage.setItem("cars", JSON.stringify(cars)); updateCarDropdowns(); renderCurrentCars(); }
+    function saveBookings() { localStorage.setItem("bookings", JSON.stringify(bookings)); updateCarDriverStatus(); }
+    function saveEmergencyIncidents() { localStorage.setItem("emergencyIncidents", JSON.stringify(emergencyIncidents)); renderEmergencyIncidents(); updateEmergencyBadge(); }
+    function updateCarDriverStatus() { cars.forEach(c=>c.status='Available'); drivers.forEach(d=>d.status='Available'); bookings.filter(b=>b.status==='On-Ride').forEach(t=>{ let car=cars.find(c=>c.numberPlate===t.carPlate); if(car) car.status='Engaged'; let dr=drivers.find(d=>d.name===t.driver); if(dr) dr.status='Engaged'; }); saveCars(); saveDrivers(); }
+
+    function updateDriverDropdowns() {
+        ['removeDriverSelect', 'batchDriverSelect'].forEach(id => {
+            let sel = document.getElementById(id);
+            if(sel) { let val=sel.value; sel.innerHTML='<option value="">--Select--</option>'; drivers.forEach(d=>{ let opt=document.createElement('option'); opt.value=d.name; opt.textContent=`${d.name} ${d.status==='Engaged'?'🔴':'🟢'}`; sel.appendChild(opt); }); if(drivers.some(d=>d.name===val)) sel.value=val; }
+        });
+    }
+    function updateCarDropdowns() {
+        ['removeCarSelect', 'batchCarSelect', 'carSelect'].forEach(id => {
+            let sel = document.getElementById(id);
+            if(sel) { let val=sel.value; sel.innerHTML='<option value="">--Select--</option>'; cars.forEach(c=>{ let opt=document.createElement('option'); opt.value=c.numberPlate; opt.textContent=`${c.details} (${c.numberPlate}) ${c.status==='Engaged'?'🔴':'🟢'}`; sel.appendChild(opt); }); if(cars.some(c=>c.numberPlate===val)) sel.value=val; }
+        });
+    }
+
+    function renderPendingRequests() {
+        let container = document.getElementById('pendingRequestsTable');
+        let pending = bookings.filter(b=>b.status==='Pending');
+        if(!pending.length) { container.innerHTML='<p class="text-muted">No pending requests.</p>'; return; }
+        let html=`<table class="table"><thead><tr><th><input type="checkbox" id="selectAllPending"></th><th>ID</th><th>Employee</th><th>Route</th><th>Time</th><th>Share</th><th>Action</th></tr></thead><tbody>`;
+        pending.forEach(b=>{html+=`<tr><td><input type="checkbox" class="pending-checkbox" data-id="${b.id}"></td><td>${b.id}</td><td>${b.employeeName}</td><td>${b.source}→${b.destination}</td><td>${b.date} ${b.timeStart}</td><td>${b.isWillingToShare?'Yes':'No'}</td><td><button class="btn btn-sm btn-primary" onclick="openApprovalModal(${b.id})">Review</button></td></tr>`;});
+        html+=`</tbody></table>`;
+        container.innerHTML=html;
+        document.getElementById('selectAllPending')?.addEventListener('change',e=>document.querySelectorAll('.pending-checkbox').forEach(cb=>cb.checked=e.target.checked));
+    }
+
+    window.openApprovalModal = function(id) {
+        let booking = bookings.find(b=>b.id===id);
+        if(!booking) return;
+        let modalHtml = `
+            <div class="modal fade" id="approvalModal" tabindex="-1">
+                <div class="modal-dialog"><div class="modal-content">
+                    <div class="modal-header"><h5>Approve Booking #${id}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <p><strong>${booking.employeeName}</strong> → ${booking.destination} on ${booking.date}</p>
+                        <select id="modalDriverSelect" class="form-select mb-2"></select>
+                        <select id="modalCarSelect" class="form-select mb-2"></select>
+                        <button id="confirmAssignBtn" class="btn btn-success">Approve & Assign</button>
+                    </div>
+                </div></div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        let modal = new bootstrap.Modal(document.getElementById('approvalModal'));
+        updateDriverDropdowns(); updateCarDropdowns();
+        document.getElementById('modalDriverSelect').innerHTML = document.getElementById('batchDriverSelect').innerHTML;
+        document.getElementById('modalCarSelect').innerHTML = document.getElementById('batchCarSelect').innerHTML;
+        document.getElementById('confirmAssignBtn').onclick = () => {
+            let driver = document.getElementById('modalDriverSelect').value;
+            let car = document.getElementById('modalCarSelect').value;
+            booking.status = 'Approved';
+            booking.driver = driver;
+            booking.carPlate = car;
+            saveBookings();
+            modal.hide();
+            renderPendingRequests();
+        };
+        modal.show();
+        document.getElementById('approvalModal').addEventListener('hidden.bs.modal', () => document.getElementById('approvalModal').remove());
+    };
+
+    document.getElementById('batchAssignBtn')?.addEventListener('click',()=>{
+        let driver = document.getElementById('batchDriverSelect').value;
+        let car = document.getElementById('batchCarSelect').value;
+        let ids = [...document.querySelectorAll('.pending-checkbox:checked')].map(cb=>parseInt(cb.dataset.id));
+        ids.forEach(id=>{ let b=bookings.find(b=>b.id===id); if(b && b.status==='Pending'){ b.status='Approved'; b.driver=driver; b.carPlate=car; } });
+        saveBookings(); renderPendingRequests();
+    });
+
+    function renderCurrentDrivers() {
+        let container = document.getElementById('currentDriversTable');
+        if(!drivers.length){ container.innerHTML='<p>No drivers</p>'; return; }
+        let html='<table class="table"><thead><tr><th>Name</th><th>Contact</th><th>Status</th><th>Trips</th></tr></thead><tbody>';
+        drivers.forEach(d=>{ let trips=bookings.filter(b=>b.driver===d.name && b.status==='Completed').length; html+=`<tr><td>${d.name}</td><td>${d.contact}</td><td><span class="badge ${d.status==='Available'?'bg-success':'bg-danger'}">${d.status}</span></td><td>${trips}</td></tr>`; });
+        html+='</tbody></table>'; container.innerHTML=html;
+    }
+    function renderCurrentCars() {
+        let container = document.getElementById('currentCarsTable');
+        if(!cars.length){ container.innerHTML='<p>No cars</p>'; return; }
+        let html='<table class="table"><thead><tr><th>Plate</th><th>Model</th><th>Status</th><th>Last Odo</th></tr></thead><tbody>';
+        cars.forEach(c=>{ html+=`<tr><td>${c.numberPlate}</td><td>${c.details}</td><td><span class="badge ${c.status==='Available'?'bg-success':'bg-danger'}">${c.status}</span></td><td>${c.lastEndOdo||0}</td></tr>`; });
+        html+='</tbody></table>'; container.innerHTML=html;
+    }
+    function renderEmergencyIncidents() {
+        let container = document.getElementById('emergencyIncidentsTable');
+        let incidents = emergencyIncidents.filter(i=>i.status==='Open');
+        if(!incidents.length){ container.innerHTML='<p>No open incidents</p>'; return; }
+        let html='<table class="table"><thead><tr><th>ID</th><th>Type</th><th>Driver</th><th>Location</th><th>Action</th></tr></thead><tbody>';
+        incidents.forEach(i=>{ html+=`<tr><td>${i.id}</td><td>${i.type}</td><td>${i.driver}</td><td>${i.location}</td><td><button class="btn btn-sm btn-success" onclick="closeIncident(${i.id})">Resolve</button></td></tr>`; });
+        html+='</tbody></table>'; container.innerHTML=html;
+    }
+    window.closeIncident = function(id) {
+        let inc = emergencyIncidents.find(i=>i.id===id);
+        if(inc) { inc.status='Closed'; saveEmergencyIncidents(); }
+    };
+    function updateEmergencyBadge() { let badge=document.getElementById('emergencyBadge'); let count=emergencyIncidents.filter(i=>i.status==='Open').length; if(badge) { badge.innerText=count; badge.style.display=count?'inline-block':'none'; } }
+    function renderDriverLogbook() {
+        let container = document.getElementById('driverLogbookPanels');
+        if(!drivers.length){ container.innerHTML='<p>No drivers</p>'; return; }
+        let html=''; drivers.forEach(d=>{ let trips=bookings.filter(b=>b.driver===d.name && b.status==='Completed'); html+=`<div class="card mb-3"><div class="card-header">${d.name}</div><div class="card-body"><p>Completed trips: ${trips.length}</p><table class="table table-sm"><thead><tr><th>ID</th><th>Date</th><th>Route</th><th>Distance</th></tr></thead><tbody>${trips.slice(0,5).map(t=>`<tr><td>${t.id}</td><td>${t.date}</td><td>${t.source}→${t.destination}</td><td>${t.odoEnd&&t.odoStart? (t.odoEnd-t.odoStart).toFixed(2):'-'}</td></tr>`).join('')}</tbody></table></div></div>`; });
+        container.innerHTML=html;
+    }
+
+    document.getElementById('addDriverBtn')?.addEventListener('click',()=>{
+        let name = document.getElementById('newDriverName').value;
+        let contact = document.getElementById('newDriverContact').value;
+        if(drivers.some(d=>d.contact===contact)){ alert('Contact exists'); return; }
+        drivers.push({name,contact,password:contact,status:'Available'});
+        saveDrivers();
+        document.getElementById('newDriverName').value='';
+        document.getElementById('newDriverContact').value='';
+    });
+    document.getElementById('removeDriverBtn')?.addEventListener('click',()=>{
+        let name = document.getElementById('removeDriverSelect').value;
+        if(!name) return;
+        drivers = drivers.filter(d=>d.name!==name);
+        saveDrivers();
+    });
+    document.getElementById('addCarBtn')?.addEventListener('click',()=>{
+        let details = document.getElementById('newCarDetails').value;
+        let plate = document.getElementById('newCarNumberPlate').value.toUpperCase();
+        if(cars.some(c=>c.numberPlate===plate)){ alert('Plate exists'); return; }
+        cars.push({details,numberPlate:plate,lastEndOdo:0,files:[],status:'Available'});
+        saveCars();
+        document.getElementById('newCarDetails').value='';
+        document.getElementById('newCarNumberPlate').value='';
+    });
+    document.getElementById('removeCarBtn')?.addEventListener('click',()=>{
+        let plate = document.getElementById('removeCarSelect').value;
+        if(!plate) return;
+        cars = cars.filter(c=>c.numberPlate!==plate);
+        saveCars();
+    });
+    document.getElementById('filterBtn')?.addEventListener('click',()=>{
+        let month = document.getElementById('monthSelect').value;
+        let filtered = bookings.filter(b=>b.date?.startsWith(month));
+        document.getElementById('monthlySummary').innerHTML=`<div class="alert alert-info">Total trips: ${filtered.length}</div>`;
+        let html='<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Employee</th><th>Route</th><th>Status</th></tr></thead><tbody>'+filtered.map(b=>`<tr><td>${b.id}</td><td>${b.date}</td><td>${b.employeeName}</td><td>${b.source}→${b.destination}</td><td>${b.status}</td></tr>`).join('')+'</tbody></table>';
+        document.getElementById('monthlyRecords').innerHTML=html;
+    });
+    document.getElementById('showCarLogBtn')?.addEventListener('click',()=>{
+        let plate = document.getElementById('carSelect').value;
+        let month = document.getElementById('carMonthSelect').value;
+        let trips = bookings.filter(b=>b.carPlate===plate && b.date?.startsWith(month));
+        document.getElementById('carMonthlyLog').innerHTML=`<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Driver</th><th>Distance</th></tr></thead><tbody>${trips.map(t=>`<tr><td>${t.id}</td><td>${t.date}</td><td>${t.driver}</td><td>${t.odoEnd&&t.odoStart? (t.odoEnd-t.odoStart).toFixed(2):'-'}</td></tr>`).join('')}</tbody></table>`;
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', NextRideAPI.logout);
+
+    updateDriverDropdowns(); updateCarDropdowns(); updateCarDriverStatus();
+    renderPendingRequests(); renderCurrentDrivers(); renderCurrentCars(); renderEmergencyIncidents(); renderDriverLogbook();
+</script>
+</body>
+</html>

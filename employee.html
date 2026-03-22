@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee – NextRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b, #2d3a4e);
+            font-family: 'Segoe UI', system-ui;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 28px;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(2px);
+            border: none;
+            box-shadow: 0 12px 25px -10px rgba(0,0,0,0.2);
+        }
+        .btn-primary {
+            background: #3b82f6;
+            border-radius: 40px;
+            border: none;
+        }
+        .table-responsive {
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .table th {
+            background: #f1f5f9;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">🚖 Book a Ride</h2>
+        <button id="logoutBtn" class="btn btn-danger rounded-pill">Logout</button>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <form id="bookingForm">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Employee Name</label>
+                    <input type="text" id="employeeName" class="form-control bg-light" readonly>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Contact</label>
+                    <input type="text" id="employeeContact" class="form-control" pattern="\d{10}" maxlength="10" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Email</label>
+                    <input type="email" id="employeeEmail" class="form-control bg-light" readonly>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Passengers</label>
+                    <input type="number" id="Passengers" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Pickup Location</label>
+                    <input type="text" id="source" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Destination Type</label>
+                    <select id="destinationType" class="form-select" required>
+                        <option value="">Select</option>
+                        <option value="within">Within Site</option>
+                        <option value="manual">Not a Site</option>
+                    </select>
+                </div>
+                <div class="col-md-6" id="withinSiteGroup" style="display:none;">
+                    <label class="form-label fw-semibold">Select Site</label>
+                    <select id="withinSiteSelect" class="form-select">
+                        <option value="">--Site--</option>
+                        <option>Genext Square</option><option>Odyssey</option><option>Astra</option>
+                        <option>Symphony</option><option>Orbit</option><option>Genext Towers</option>
+                        <option>Jawahar Nagar</option><option>Nagole WTP</option><option>Orion</option>
+                        <option>Nextown</option><option>Eminent</option><option>Harshaguda Villas</option>
+                        <option>Harmony</option>
+                    </select>
+                </div>
+                <div class="col-md-6" id="manualDestinationGroup" style="display:none;">
+                    <label class="form-label fw-semibold">Enter Destination</label>
+                    <input type="text" id="manualDestinationInput" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Journey Date</label>
+                    <input type="date" id="date" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Start Time</label>
+                    <input type="time" id="journey-start" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">End Time</label>
+                    <input type="time" id="journey-end" class="form-control" required>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input type="checkbox" id="isWillingToShare" class="form-check-input">
+                        <label class="form-check-label">I am willing to share this cab if route aligns</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary w-100 py-2">Confirm Booking</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="card p-4">
+        <h3 class="mb-3">📋 My Booking History</h3>
+        <div id="userBookingHistory" class="table-responsive"></div>
+    </div>
+</div>
+
+<script src="utils.js"></script>
+<script>
+
+    NextRideAPI.checkToken();
+    const currentUser = localStorage.getItem('currentUser');
+
+    let profile = null;
+    async function loadProfile() {
+        try {
+            profile = { name: currentUser, email: '', contact: '' };
+            document.getElementById('employeeName').value = profile.name || currentUser;
+            document.getElementById('employeeEmail').value = profile.email;
+            document.getElementById('employeeContact').value = profile.contact || '';
+        } catch (e) {}
+    }
+    loadProfile();
+
+    // Destination type toggle
+    document.getElementById('destinationType').addEventListener('change', function() {
+        document.getElementById('withinSiteGroup').style.display = this.value === 'within' ? 'block' : 'none';
+        document.getElementById('manualDestinationGroup').style.display = this.value === 'manual' ? 'block' : 'none';
+    });
+
+    // Booking submit
+    document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const employeeContact = document.getElementById('employeeContact').value;
+        let destination = '';
+        const destType = document.getElementById('destinationType').value;
+        if (destType === 'within') destination = document.getElementById('withinSiteSelect').value;
+        else destination = document.getElementById('manualDestinationInput').value;
+
+        const bookingData = {
+            employeeContact,
+            Passengers: document.getElementById('Passengers').value,
+            source: document.getElementById('source').value,
+            destination,
+            date: document.getElementById('date').value,
+            timeStart: document.getElementById('journey-start').value,
+            timeEnd: document.getElementById('journey-end').value,
+            isWillingToShare: document.getElementById('isWillingToShare').checked,
+        };
+
+        try {
+            await NextRideAPI.apiCall('/bookings', {
+                method: 'POST',
+                body: JSON.stringify(bookingData)
+            });
+            alert('Booking submitted!');
+            document.getElementById('bookingForm').reset();
+            loadProfile();
+            renderMyBookings();
+        } catch (error) {
+            alert('Booking failed: ' + error.message);
+        }
+    });
+
+    async function renderMyBookings() {
+        const container = document.getElementById('userBookingHistory');
+        try {
+            const bookings = await NextRideAPI.apiCall('/bookings/my');
+            if (!bookings.length) { 
+                container.innerHTML = '<p class="text-muted">No bookings yet.</p>'; 
+                return; 
+            }
+            let html = `<table class="table table-hover align-middle"><thead><tr><th>ID</th><th>Date</th><th>Route</th><th>Time</th><th>Status</th><th>Driver</th></tr></thead><tbody>`;
+            bookings.forEach(b => {
+                html += `<tr><td>#${b._id || b.id}</td><td>${b.date}</td><td>${b.source} → ${b.destination}</td><td>${b.timeStart}-${b.timeEnd}</td><td><span class="badge ${b.status==='Pending'?'bg-warning':b.status==='Approved'?'bg-success':'bg-secondary'}">${b.status}</span></td><td>${b.driver || '-'}</td></tr>`;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        } catch (error) {
+            container.innerHTML = '<p class="text-danger">Failed to load bookings.</p>';
+        }
+    }
+    renderMyBookings();
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        NextRideAPI.logout();
+    });
+</script>
+</body>
+</html>

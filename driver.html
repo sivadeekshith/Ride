@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver – NextRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b, #2d3a4e);
+            font-family: 'Segoe UI', system-ui;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 28px;
+            background: rgba(255,255,255,0.96);
+            border: none;
+            box-shadow: 0 12px 25px -10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">🚛 Driver Dashboard</h2>
+        <button id="logoutBtn" class="btn btn-danger rounded-pill">Logout</button>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <button id="reportEmergencyBtn" class="btn btn-danger w-100 mb-3">🚨 Report Emergency</button>
+        <h3>📖 On Ride Log Book</h3>
+        <div id="driverLogBookTable" class="table-responsive"></div>
+    </div>
+
+    <div class="card p-4 mb-4">
+        <h3>🕒 Session History</h3>
+        <div id="driverSessionTable"></div>
+    </div>
+
+    <div class="card p-4">
+        <h3>📅 Monthly Trip Report</h3>
+        <div class="row g-2 mb-3">
+            <div class="col-auto"><input type="month" id="driverMonthSelect" class="form-control"></div>
+            <div class="col-auto"><button id="driverFilterMonthBtn" class="btn btn-primary">Show Report</button></div>
+        </div>
+        <div id="driverMonthlySummary"></div>
+        <div id="driverMonthlyRecords" class="mt-3"></div>
+    </div>
+</div>
+
+<script src="utils.js"></script>
+<script>
+    NextRideAPI.checkToken();
+    const currentUser = localStorage.getItem('currentUser');
+
+    let bookings = JSON.parse(localStorage.getItem("bookings")) || [];
+    let driverSessions = JSON.parse(localStorage.getItem("driverSessions")) || [];
+    let emergencyIncidents = JSON.parse(localStorage.getItem("emergencyIncidents")) || [];
+    let cars = JSON.parse(localStorage.getItem("cars")) || [];
+
+    function saveBookings() { localStorage.setItem("bookings", JSON.stringify(bookings)); updateCarDriverStatus(); }
+    function saveDriverSessions() { localStorage.setItem("driverSessions", JSON.stringify(driverSessions)); }
+    function saveEmergencyIncidents() { localStorage.setItem("emergencyIncidents", JSON.stringify(emergencyIncidents)); }
+    function updateCarDriverStatus() {
+        cars.forEach(c=>c.status='Available');
+        drivers.forEach(d=>d.status='Available');
+        bookings.filter(b=>b.status==='On-Ride').forEach(t=>{
+            let car=cars.find(c=>c.numberPlate===t.carPlate); if(car) car.status='Engaged';
+            let dr=drivers.find(d=>d.name===t.driver); if(dr) dr.status='Engaged';
+        });
+        localStorage.setItem("cars", JSON.stringify(cars));
+        localStorage.setItem("drivers", JSON.stringify(drivers));
+    }
+
+    function renderDriverLogBook() {
+        let container = document.getElementById('driverLogBookTable');
+        let trips = bookings.filter(b=>b.driver===currentUser && (b.status==='Approved' || b.status==='On-Ride'));
+        if(!trips.length) { container.innerHTML='<p class="text-muted">No active trips.</p>'; return; }
+        let html=`<table class="table"><thead><tr><th>ID</th><th>Route</th><th>Time</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
+        trips.forEach(t=>{
+            html+=`<tr><td>#${t.id}</td><td>${t.source} → ${t.destination}</td><td>${t.date} ${t.timeStart}</td><td>${t.status}</td><td>`;
+            if(t.status==='Approved') html+=`<button class="btn btn-sm btn-success" onclick="startTrip(${t.id})">Start Trip</button>`;
+            else if(t.status==='On-Ride') html+=`<button class="btn btn-sm btn-warning" onclick="endTrip(${t.id})">Complete Trip</button>`;
+            html+=`</td></tr>`;
+        });
+        html+=`</tbody></table>`;
+        container.innerHTML=html;
+    }
+
+    window.startTrip = function(id) {
+        let booking = bookings.find(b=>b.id===id);
+        if(!booking) return;
+        let car = cars.find(c=>c.numberPlate===booking.carPlate);
+        let lastOdo = car ? car.lastEndOdo : 0;
+        let reading = prompt(`Enter current odometer reading (km). Last recorded: ${lastOdo} km`, lastOdo);
+        let val = parseFloat(reading);
+        if(isNaN(val) || val < lastOdo) { alert('Invalid reading'); return; }
+        booking.odoStart = val;
+        booking.status = 'On-Ride';
+        saveBookings();
+        renderDriverLogBook();
+    };
+
+    window.endTrip = function(id) {
+        let booking = bookings.find(b=>b.id===id);
+        if(!booking) return;
+        let start = booking.odoStart;
+        let reading = prompt(`Enter current odometer reading (km). Start: ${start} km`, start+10);
+        let val = parseFloat(reading);
+        if(isNaN(val) || val <= start) { alert('End reading must be greater than start'); return; }
+        booking.odoEnd = val;
+        booking.status = 'Completed';
+        booking.tripCompletedAt = new Date().toISOString();
+        let car = cars.find(c=>c.numberPlate===booking.carPlate);
+        if(car) car.lastEndOdo = val;
+        saveBookings();
+        renderDriverLogBook();
+        // Auto logout session
+        let session = driverSessions.find(s=>s.driverName===currentUser && !s.logoutTime);
+        if(session) { session.logoutTime = new Date().toISOString(); saveDriverSessions(); }
+    };
+
+    function renderSessionHistory() {
+        let container = document.getElementById('driverSessionTable');
+        let mySessions = driverSessions.filter(s=>s.driverName===currentUser);
+        if(!mySessions.length) { container.innerHTML='<p>No sessions recorded.</p>'; return; }
+        let html=`<table class="table"><thead><tr><th>Login</th><th>Logout</th></tr></thead><tbody>`;
+        mySessions.forEach(s=>{
+            html+=`<tr><td>${new Date(s.loginTime).toLocaleString()}</td><td>${s.logoutTime ? new Date(s.logoutTime).toLocaleString() : 'Active'}</td></tr>`;
+        });
+        html+=`</tbody></table>`;
+        container.innerHTML=html;
+    }
+
+    document.getElementById('driverFilterMonthBtn')?.addEventListener('click',()=>{
+        let month = document.getElementById('driverMonthSelect').value;
+        let trips = bookings.filter(b=>b.driver===currentUser && b.date?.startsWith(month) && b.status==='Completed');
+        document.getElementById('driverMonthlySummary').innerHTML=`<div class="alert alert-info">Completed trips: ${trips.length}</div>`;
+        let html=`<table class="table"><thead><tr><th>ID</th><th>Date</th><th>Route</th><th>Distance</th></tr></thead><tbody>`;
+        trips.forEach(t=>{
+            let dist = (t.odoEnd && t.odoStart) ? (t.odoEnd - t.odoStart).toFixed(2) : '-';
+            html+=`<tr><td>${t.id}</td><td>${t.date}</td><td>${t.source}→${t.destination}</td><td>${dist}</td></tr>`;
+        });
+        html+=`</tbody></table>`;
+        document.getElementById('driverMonthlyRecords').innerHTML=html;
+    });
+
+    document.getElementById('reportEmergencyBtn')?.addEventListener('click',()=>{
+        let active = bookings.find(b=>b.driver===currentUser && b.status==='On-Ride');
+        if(!active){ alert('No ongoing trip to report emergency.'); return; }
+        let type = prompt('Incident type (Breakdown/Accident/Other):');
+        let location = prompt('Location:');
+        let details = prompt('Details:');
+        if(type && location){
+            emergencyIncidents.push({ id:Date.now(), bookingId:active.id, driver:currentUser, type, location, details, timestamp:new Date().toISOString(), status:'Open' });
+            saveEmergencyIncidents();
+            alert('Emergency reported. Admin notified.');
+        }
+    });
+
+    // Record driver login session
+    if(!driverSessions.some(s=>s.driverName===currentUser && !s.logoutTime)){
+        driverSessions.push({ driverName:currentUser, loginTime:new Date().toISOString(), logoutTime:null });
+        saveDriverSessions();
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', NextRideAPI.logout);
+
+    renderDriverLogBook();
+    renderSessionHistory();
+</script>
+</body>
+</html>

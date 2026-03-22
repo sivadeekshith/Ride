@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track My Ride – NextRide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b, #2d3a4e);
+            font-family: 'Segoe UI', system-ui;
+            padding: 20px;
+        }
+        .card {
+            border-radius: 28px;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(2px);
+            border: none;
+            box-shadow: 0 12px 25px -10px rgba(0,0,0,0.2);
+        }
+        #map { height: 500px; border-radius: 20px; }
+        .info-panel { background: white; border-radius: 20px; padding: 15px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">📍 Track Your Ride</h2>
+        <button id="logoutBtn" class="btn btn-danger rounded-pill">Logout</button>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card p-3 mb-3">
+                <h5>Active Trip Details</h5>
+                <div id="tripDetails">Loading...</div>
+            </div>
+            <div class="card p-3">
+                <h5>Driver Location</h5>
+                <div id="driverInfo">Waiting for location...</div>
+                <div class="mt-2 text-muted small">Last update: <span id="lastUpdate">-</span></div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card p-2">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="utils.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    NextRideAPI.checkToken();
+
+    let map;
+    let driverMarker;
+    let updateInterval;
+
+    // Fetch current user's active booking
+    async function fetchActiveBooking() {
+        const bookings = await NextRideAPI.apiCall('/bookings/my');
+        const active = bookings.find(b => b.status === 'Approved' || b.status === 'On-Ride');
+        if (!active) {
+            document.getElementById('tripDetails').innerHTML = '<p class="text-muted">No active trip.</p>';
+            document.getElementById('driverInfo').innerHTML = '<p class="text-muted">No active trip.</p>';
+            if (updateInterval) clearInterval(updateInterval);
+            return null;
+        }
+        document.getElementById('tripDetails').innerHTML = `
+            <p><strong>ID:</strong> #${active.id}</p>
+            <p><strong>From:</strong> ${active.source}</p>
+            <p><strong>To:</strong> ${active.destination}</p>
+            <p><strong>Status:</strong> ${active.status}</p>
+            <p><strong>Driver:</strong> ${active.driver || 'Not assigned'}</p>
+        `;
+        if (active.driver) {
+            startTracking(active.driver);
+        }
+        return active;
+    }
+
+    async function startTracking(driverName) {
+        if (updateInterval) clearInterval(updateInterval);
+        await fetchDriverLocation(driverName);
+        updateInterval = setInterval(() => fetchDriverLocation(driverName), 5000);
+    }
+
+    async function fetchDriverLocation(driverName) {
+        try {
+            const loc = await NextRideAPI.apiCall(`/driver/location/${driverName}`);
+            updateMap(loc.lat, loc.lng);
+            document.getElementById('driverInfo').innerHTML = `<p>Driver is on the move</p>`;
+            document.getElementById('lastUpdate').innerText = new Date(loc.timestamp).toLocaleTimeString();
+        } catch (err) {
+            document.getElementById('driverInfo').innerHTML = '<p class="text-danger">Driver location not available yet.</p>';
+        }
+    }
+
+    function updateMap(lat, lng) {
+        if (!map) {
+            map = L.map('map').setView([lat, lng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        }
+        if (driverMarker) driverMarker.setLatLng([lat, lng]);
+        else driverMarker = L.marker([lat, lng]).addTo(map).bindPopup('Driver').openPopup();
+        map.setView([lat, lng], 14);
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', NextRideAPI.logout);
+
+    fetchActiveBooking();
+</script>
+</body>
+</html>
